@@ -1,3 +1,9 @@
+/*
+    Use, modification and distribution are subject to the Boost Software License,
+    Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
+    http://www.boost.org/LICENSE_1_0.txt).
+*/
+
 #ifndef _Q_GIL_CONVERTER_H_
 #define _Q_GIL_CONVERTER_H_
 
@@ -10,39 +16,42 @@
 namespace q_gil
 {
 
+// convert QRgb to gil pixel
 template <typename Pixel_Type>
 inline void qrgb_to_gil_pixel( const QRgb &src_rgb, Pixel_Type &dst_pixel )
 {
   using namespace boost;
+  // pixel concept check
+  gil::gil_function_requires< gil::PixelConcept<Pixel_Type> >();
+
   gil::color_convert(
-        gil::rgb8_pixel_t(
-          qRed(src_rgb),
-          qGreen(src_rgb),
-          qBlue(src_rgb)
-          ),
+        gil::rgb8_pixel_t( qRed(src_rgb), qGreen(src_rgb), qBlue(src_rgb) ),
         dst_pixel
         );
 }
 
+// convert QRgb(contains alpha channel) to gil pixel
 template <typename Pixel_Type>
 inline void qrgba_to_gil_pixel( const QRgb &src_rgba, Pixel_Type &dst_pixel )
 {
   using namespace boost;
+  // pixel concept check
+  gil::gil_function_requires< gil::PixelConcept<Pixel_Type> >();
+
   gil::color_convert(
-        gil::rgba8_pixel_t(
-          qRed(src_rgba),
-          qGreen(src_rgba),
-          qBlue(src_rgba),
-          qAlpha(src_rgba)
-          ),
+        gil::rgba8_pixel_t( qRed(src_rgba), qGreen(src_rgba), qBlue(src_rgba), qAlpha(src_rgba) ),
         dst_pixel
         );
 }
 
+// convert gil pixel to QRgb(contains alpha channel)
 template <typename Pixel_Type>
 inline QRgb gil_pixel_to_qrgb( const Pixel_Type &src_pixel )
 {
   using namespace boost;
+  // pixel concept check
+  gil::gil_function_requires< gil::PixelConcept<Pixel_Type> >();
+
   gil::rgb8_pixel_t rgb_pix;
   gil::color_convert( src_pixel, rgb_pix );
   return qRgb(
@@ -52,10 +61,14 @@ inline QRgb gil_pixel_to_qrgb( const Pixel_Type &src_pixel )
         );
 }
 
+// convert gil pixel to QRgb
 template <typename Pixel_Type>
 inline QRgb gil_pixel_to_qrgba( const Pixel_Type &src_pixel )
 {
   using namespace boost;
+  // pixel concept check
+  gil::gil_function_requires< gil::PixelConcept<Pixel_Type> >();
+
   gil::rgba8_pixel_t rgba_pix;
   gil::color_convert( src_pixel, rgba_pix );
   return qRgba(
@@ -68,6 +81,8 @@ inline QRgb gil_pixel_to_qrgba( const Pixel_Type &src_pixel )
 
 namespace detail
 {
+
+  /*////// convert functors //////*/
 
   struct qrgb_to_gil_pixel_functor
   {
@@ -97,6 +112,8 @@ namespace detail
     { return gil_pixel_to_qrgba( src_pixel ); }
   };
 
+
+  // implementation of qimage_to_gil_image
   template <typename Image_Type, typename Func>
   void qimage_to_gil_image_impl(
     const QImage &src_qimg,
@@ -108,12 +125,14 @@ namespace detail
     boost::gil::gil_function_requires< boost::gil::ImageConcept<Image_Type> >();
 
     typedef typename Image_Type::view_t View_t;
+    typedef typename Image_Type::coord_t Coord_t;
 
-    const typename View_t::coord_t w = src_qimg.width();
-    const typename View_t::coord_t h = src_qimg.height();
+    const int w = src_qimg.width();
+    const int h = src_qimg.height();
 
-    assert( w < std::numeric_limits<int>::max() &&
-            h < std::numeric_limits<int>::max() );
+    // gil coordinate type is possible  being less than int
+    assert( w < std::numeric_limits<Coord_t>::max() &&
+            h < std::numeric_limits<Coord_t>::max() );
 
     if( dst_gil_img.width() != w || dst_gil_img.height() != h )
       dst_gil_img.recreate( w, h );
@@ -129,6 +148,7 @@ namespace detail
     }
   }
 
+  // implementation of gil_view_to_qimage
   template <typename View_Type, typename Func>
   QImage gil_view_to_qimage_impl(
     const View_Type &src_view,
@@ -158,11 +178,16 @@ namespace detail
     return dst_qimg;
   }
 
-}
+} // namespace detail
 
+// convert QImage to gil image
+// size of dst_gil_img will be truncated same as src_qimg
 template <typename Image_Type>
 void qimage_to_gil_image( const QImage &src_qimg, Image_Type &dst_gil_img )
 {
+  // image concept check
+  boost::gil::gil_function_requires< boost::gil::ImageConcept<Image_Type> >();
+
   const bool has_alpha = src_qimg.hasAlphaChannel();
   return has_alpha ?
         detail::qimage_to_gil_image_impl(
@@ -174,6 +199,7 @@ void qimage_to_gil_image( const QImage &src_qimg, Image_Type &dst_gil_img )
           );
 }
 
+// convert gil view to QImage. retrurns created QImage.
 template <typename View_Type>
 QImage gil_view_to_qimage( const View_Type &src_view )
 {
@@ -181,7 +207,6 @@ QImage gil_view_to_qimage( const View_Type &src_view )
   boost::gil::gil_function_requires< boost::gil::ImageViewConcept<View_Type> >();
 
   const bool has_alpha = boost::gil::contains_color<typename View_Type::value_type,boost::gil::alpha_t>::value;
-
   return has_alpha ?
         detail::gil_view_to_qimage_impl(
           src_view, QImage::Format_ARGB32, detail::gil_pixel_to_qrgba_functor()
@@ -192,6 +217,6 @@ QImage gil_view_to_qimage( const View_Type &src_view )
           );
 }
 
-}
+} // namespace q_gil
 
 #endif // _Q_GIL_CONVERTER_H_
